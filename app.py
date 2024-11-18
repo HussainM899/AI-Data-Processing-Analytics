@@ -427,7 +427,8 @@ def main():
         st.sidebar.title("Navigation")
         app_mode = st.sidebar.selectbox(
             "Choose the app mode",
-            ["Data Processing", "Analysis & Visualization", "About"]
+            ["About", "Data Processing", "Analysis & Visualization"],
+            index=0  # This sets "About" as the default selection
         )
         
         if app_mode == "About":
