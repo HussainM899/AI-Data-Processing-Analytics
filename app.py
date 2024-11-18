@@ -5,6 +5,7 @@ import google.generativeai as genai
 from langchain_google_genai import GoogleGenerativeAI
 from io import BytesIO
 import os
+import json
 
 # Configure page settings
 st.set_page_config(page_title="Excel Automation App", layout="wide")
@@ -43,8 +44,28 @@ import os
 # Load environment variables from .env file
 load_dotenv()
 
-# Get API key
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+# Function to get credentials securely
+def get_credentials():
+    """Get Google credentials from environment variables"""
+    try:
+        # For Hugging Face Spaces: use secrets
+        if 'GOOGLE_CREDENTIALS_JSON' in st.secrets:
+            credentials_json = st.secrets['GOOGLE_CREDENTIALS_JSON']
+            return json.loads(credentials_json)
+        # For local development: use .env
+        else:
+            load_dotenv()
+            credentials_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+            with open(credentials_path, 'r') as f:
+                return json.load(f)
+    except Exception as e:
+        st.error(f"Error loading credentials: {str(e)}")
+        return None
+
+# Use credentials in your app
+credentials = get_credentials()
+if credentials:
+    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = json.dumps(credentials)
 
 def upload_and_parse_file():
     """Handle file upload and parsing."""
