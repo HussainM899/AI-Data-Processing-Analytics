@@ -3,6 +3,7 @@
 .env
 credentials/
 test_python_gemini.py
+.streamlit/secrets.toml
 
 # Python
 __pycache__/
