@@ -2,6 +2,7 @@
 *.json
 .env
 credentials/
+test_python_gemini.py
 
 # Python
 __pycache__/
