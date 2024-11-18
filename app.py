@@ -1,12 +1,29 @@
-import pandas as pd
+import os
+from dotenv import load_dotenv
 import streamlit as st
+import pandas as pd
 import plotly.express as px
 import google.generativeai as genai
 from langchain_google_genai import GoogleGenerativeAI
 from io import BytesIO
-import os
-import json
 
+# Load environment variables
+load_dotenv()
+
+# Get API key securely
+def get_api_key():
+    """Get API key from environment variables or secrets."""
+    try:
+        return st.secrets['GOOGLE_API_KEY']
+    except:
+        return os.getenv('GOOGLE_API_KEY')
+
+# Set the API key
+GOOGLE_API_KEY = get_api_key()
+
+# Configure Gemini
+if GOOGLE_API_KEY:
+    genai.configure(api_key=GOOGLE_API_KEY)
 # Configure page settings
 st.set_page_config(page_title="Excel Automation App", layout="wide")
 
@@ -38,36 +55,7 @@ CADRE_MAPPINGS = {
     "Independent Monitor": "UC Level",
 }
 
-from dotenv import load_dotenv
-import os
-
-# Load environment variables from .env file
-load_dotenv()
-
-# Function to get credentials securely
-def get_credentials():
-    """Get Google credentials from environment variables"""
-    try:
-        # For Hugging Face Spaces: use secrets
-        if 'GOOGLE_CREDENTIALS_JSON' in st.secrets:
-            credentials_json = st.secrets['GOOGLE_CREDENTIALS_JSON']
-            return json.loads(credentials_json)
-        # For local development: use .env
-        else:
-            load_dotenv()
-            credentials_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
-            with open(credentials_path, 'r') as f:
-                return json.load(f)
-    except Exception as e:
-        st.error(f"Error loading credentials: {str(e)}")
-        return None
-
-# Use credentials in your app
-credentials = get_credentials()
-if credentials:
-    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = json.dumps(credentials)
-
-def upload_and_parse_file():
+def upload_and_parse_file(uploaded_file):
     """Handle file upload and parsing."""
     try:
         # Detect file type and parse accordingly
@@ -313,6 +301,10 @@ def show_visualizations(df):
 def query_gemini(df, question):
     """Query Gemini AI with enhanced analytics capabilities"""
     try:
+        if not GOOGLE_API_KEY:
+            st.error("Google API Key not configured")
+            return "Error: API Key not found"
+            
         llm = GoogleGenerativeAI(
             model="gemini-1.5-pro",
             google_api_key=GOOGLE_API_KEY,
@@ -465,102 +457,92 @@ def main():
         col1, col2 = st.columns([2, 1])
         
         with col1:
-            # File uploader in main function
             uploaded_file = st.file_uploader("Upload your file (CSV/XLS/XLSX)", type=["csv", "xls", "xlsx"])
             
             if uploaded_file:
                 try:
-                    # Read the file
-                    with st.spinner('Reading file...'):
-                        if uploaded_file.name.endswith(".csv"):
-                            df = pd.read_csv(uploaded_file)
-                        else:
-                            df = pd.read_excel(uploaded_file, header=[0, 1])
+                    # Use the upload_and_parse_file function
+                    df = upload_and_parse_file(uploaded_file)
+                    if df is not None:
+                        st.success("File uploaded successfully!")
                         
-                        # Handle multi-level headers
-                        if isinstance(df.columns, pd.MultiIndex):
-                            df.columns = [' '.join(str(col) for col in cols if str(col) != 'nan').strip() 
-                                        for cols in df.columns.values]
-                    
-                    st.success("File uploaded successfully!")
-                    
-                    # Clean data with progress indicator
-                    with st.spinner('Cleaning data...'):
-                        df = clean_data(df)
-                    
-                    # Map designations to cadres
-                    with st.spinner('Mapping designations to cadres...'):
-                        df = map_designations(df)
+                        # Clean data with progress indicator
+                        with st.spinner('Cleaning data...'):
+                            df = clean_data(df)
                         
-                        # Show the unique designations that weren't mapped
-                        unmapped = df[df['Cadre'] == 'Unmapped']['designation_title'].unique()
-                        if len(unmapped) > 0:
-                            st.warning(f"Found {len(unmapped)} unmapped designations!")
-                    
-                    if app_mode == "Data Processing":
-                        # Handle new designations if any are unmapped
-                        if len(unmapped) > 0:
-                            df = handle_new_designations(df)
-                            # Reapply mapping after handling new designations
+                        # Map designations to cadres
+                        with st.spinner('Mapping designations to cadres...'):
                             df = map_designations(df)
+                            
+                            # Show the unique designations that weren't mapped
+                            unmapped = df[df['Cadre'] == 'Unmapped']['designation_title'].unique()
+                            if len(unmapped) > 0:
+                                st.warning(f"Found {len(unmapped)} unmapped designations!")
                         
-                        # Show interactive preview
-                        filtered_df = show_interactive_preview(df)
+                        if app_mode == "Data Processing":
+                            # Handle new designations if any are unmapped
+                            if len(unmapped) > 0:
+                                df = handle_new_designations(df)
+                                # Reapply mapping after handling new designations
+                                df = map_designations(df)
+                            
+                            # Show interactive preview
+                            filtered_df = show_interactive_preview(df)
+                            
+                            # Export Options
+                            st.subheader("📥 Export Options")
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                export_data(filtered_df)
+                            with col2:
+                                export_mappings(CADRE_MAPPINGS)
                         
-                        # Export Options
-                        st.subheader("📥 Export Options")
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            export_data(filtered_df)
-                        with col2:
-                            export_mappings(CADRE_MAPPINGS)
-                    
-                    elif app_mode == "Analysis & Visualization":
-                        show_visualizations(df)
-                        
-                        # Gemini AI Query Section
-                        st.subheader("💬 Ask Gemini AI about your data")
-                        
-                        # Add suggested questions
-                        suggested_questions = [
-                            f"How many total records are in the dataset?",
-                            f"What is the exact count and percentage for each Cadre level?",
-                            f"How many unmapped designations are there?",
-                            f"What is the most common Cadre level?",
-                            f"What percentage of staff is at the District Level?",
-                            "Custom Question"
-                        ]
-                        
-                        question_type = st.selectbox(
-                            "Choose a question type:",
-                            suggested_questions
-                        )
-                        
-                        if question_type == "Custom Question":
-                            question = st.text_input("Enter your question about the data:")
-                        else:
-                            question = question_type
-                        
-                        if question:
-                            with st.spinner('Analyzing data...'):
-                                response = query_gemini(df, question)
-                                st.markdown("### Analysis Results")
-                                st.markdown(response)
-                                
-                                # Add debug expander
-                                with st.expander("Debug Information", expanded=False):
-                                    if 'last_context' in st.session_state:
-                                        st.text("Context sent to AI:")
-                                        st.code(st.session_state['last_context'])
-                                    if 'last_response' in st.session_state:
-                                        st.text("Raw AI Response:")
-                                        st.code(st.session_state['last_response'])
-                                
-                                if st.button("Generate Follow-up Questions"):
-                                    follow_up_prompt = f"Based on the previous analysis about '{question}', what are 3 relevant follow-up questions we could ask about this data?"
-                                    follow_up_response = query_gemini(df, follow_up_prompt)
-                                    st.markdown("### Suggested Follow-up Questions")
-                                    st.markdown(follow_up_response)
+                        elif app_mode == "Analysis & Visualization":
+                            show_visualizations(df)
+                            
+                            # Gemini AI Query Section
+                            st.subheader("💬 Ask Gemini AI about your data")
+                            
+                            # Add suggested questions
+                            suggested_questions = [
+                                f"How many total records are in the dataset?",
+                                f"What is the exact count and percentage for each Cadre level?",
+                                f"How many unmapped designations are there?",
+                                f"What is the most common Cadre level?",
+                                f"What percentage of staff is at the District Level?",
+                                "Custom Question"
+                            ]
+                            
+                            question_type = st.selectbox(
+                                "Choose a question type:",
+                                suggested_questions
+                            )
+                            
+                            if question_type == "Custom Question":
+                                question = st.text_input("Enter your question about the data:")
+                            else:
+                                question = question_type
+                            
+                            if question:
+                                with st.spinner('Analyzing data...'):
+                                    response = query_gemini(df, question)
+                                    st.markdown("### Analysis Results")
+                                    st.markdown(response)
+                                    
+                                    # Add debug expander
+                                    with st.expander("Debug Information", expanded=False):
+                                        if 'last_context' in st.session_state:
+                                            st.text("Context sent to AI:")
+                                            st.code(st.session_state['last_context'])
+                                        if 'last_response' in st.session_state:
+                                            st.text("Raw AI Response:")
+                                            st.code(st.session_state['last_response'])
+                                    
+                                    if st.button("Generate Follow-up Questions"):
+                                        follow_up_prompt = f"Based on the previous analysis about '{question}', what are 3 relevant follow-up questions we could ask about this data?"
+                                        follow_up_response = query_gemini(df, follow_up_prompt)
+                                        st.markdown("### Suggested Follow-up Questions")
+                                        st.markdown(follow_up_response)
                 
                 except Exception as e:
                     st.error(f"Error processing file: {str(e)}")
