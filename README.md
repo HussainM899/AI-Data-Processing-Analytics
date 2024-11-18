@@ -30,6 +30,10 @@ A Streamlit application that automates Excel data processing, provides intellige
   - District-wise visualizations
   - Interactive dashboards
   - Correlation analysis
+## Setup & Installation 
+
+Live Web App on Huggingface Space: [AI Data Processing Analytics](https://huggingface.co/spaces/HussainM899/AI-Powered_Excel_Data_Analysis_App)
+
 
 ## Setup & Installation 
 
