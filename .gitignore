@@ -29,3 +29,6 @@ var/
 venv/
 ENV/
 datacleaning/
+
+# Hugging Face Spaces
+.ipynb_checkpoints/
