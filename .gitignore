@@ -1,16 +1,23 @@
 # Sensitive files
-*.json
+.streamlit/**
 .env
-credentials/
+*.json
 test_python_gemini.py
-.streamlit/secrets.toml
+cadre_mappings.json
+gen-lang-client-*.json
+
+# Directories
+data/
+resources/
+__pycache__/
+venv/
+ENV/
+datacleaning/
 
 # Python
-__pycache__/
 *.py[cod]
 *$py.class
 .Python
-env/
 build/
 develop-eggs/
 dist/
@@ -25,8 +32,3 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
-
-# Virtual Environment
-venv/
-ENV/
-datacleaning/
