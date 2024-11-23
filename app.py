@@ -110,13 +110,11 @@ def map_designations(df, column_name="designation_title"):
 def handle_new_designations(df, column_name="designation_title"):
     """Handle new designations and update the CADRE_MAPPINGS dictionary."""
     try:
-        # Get current designations that aren't in our mapping
         current_designations = set(df[df['Cadre'] == 'Unmapped'][column_name].unique())
         
         if current_designations:
             st.warning(f"📝 Found {len(current_designations)} new designation(s) that need mapping!")
             
-            # Available cadre levels (predefined options only)
             CADRE_LEVELS = [
                 "District Level",
                 "Federal Level",
@@ -125,7 +123,6 @@ def handle_new_designations(df, column_name="designation_title"):
                 "UC Level"
             ]
             
-            # Create a container for new mappings
             new_mappings = {}
             
             with st.expander("Map New Designations", expanded=True):
@@ -133,7 +130,7 @@ def handle_new_designations(df, column_name="designation_title"):
                 st.markdown("Please assign appropriate cadres to the following designations:")
                 
                 # Create a form for mapping new designations
-                for designation in current_designations:
+                for idx, designation in enumerate(current_designations):
                     col1, col2 = st.columns([2, 1])
                     with col1:
                         st.text(designation)
@@ -141,7 +138,7 @@ def handle_new_designations(df, column_name="designation_title"):
                         selected_cadre = st.selectbox(
                             "Select Cadre",
                             options=CADRE_LEVELS,
-                            key=f"new_designation_{designation}"
+                            key=f"new_designation_{idx}"
                         )
                         new_mappings[designation] = selected_cadre
                 
@@ -180,7 +177,8 @@ def show_interactive_preview(df):
         cols = st.multiselect(
             "Select columns to display:",
             df.columns.tolist(),
-            default=df.columns.tolist()
+            default=df.columns.tolist(),
+            key="preview_columns"  # Added unique key
         )
         
         # Row count slider
@@ -188,19 +186,24 @@ def show_interactive_preview(df):
             "Number of rows to display:",
             min_value=5,
             max_value=len(df),
-            value=min(50, len(df))
+            value=min(50, len(df)),
+            key="row_count_slider"  # Added unique key
         )
         
         # Index visibility
-        hide_index = st.checkbox("Hide index", value=True)
+        hide_index = st.checkbox("Hide index", value=True, key="hide_index_checkbox")  # Added unique key
     
     # Search and filter in an expander
     with st.expander("🔍 Search & Filters", expanded=False):
         # Global search
-        search = st.text_input("Search in all columns:", "")
+        search = st.text_input("Search in all columns:", "", key="search_input")  # Added unique key
         
         # Column-specific filters
-        filter_col = st.selectbox("Filter by column:", ["None"] + df.columns.tolist())
+        filter_col = st.selectbox(
+            "Filter by column:",
+            ["None"] + df.columns.tolist(),
+            key="filter_column_selectbox"  # Added unique key
+        )
         
         if filter_col != "None":
             if df[filter_col].dtype in ['int64', 'float64']:
@@ -209,7 +212,8 @@ def show_interactive_preview(df):
                     f"Range for {filter_col}:",
                     float(df[filter_col].min()),
                     float(df[filter_col].max()),
-                    (float(df[filter_col].min()), float(df[filter_col].max()))
+                    (float(df[filter_col].min()), float(df[filter_col].max())),
+                    key=f"filter_{filter_col}_range_slider"  # Added unique key
                 )
             else:
                 # Category filter
@@ -217,7 +221,8 @@ def show_interactive_preview(df):
                 selected_vals = st.multiselect(
                     f"Select values for {filter_col}:",
                     unique_vals,
-                    default=unique_vals
+                    default=unique_vals,
+                    key=f"filter_{filter_col}_multiselect"  # Added unique key
                 )
     
     # Apply filters
@@ -226,11 +231,11 @@ def show_interactive_preview(df):
     # Apply search
     if search:
         mask = filtered_df.astype(str).apply(
-            lambda x: x.str.contains(search, case=False)
+            lambda x: x.str.contains(search, case=False, na=False)
         ).any(axis=1)
         filtered_df = filtered_df[mask]
-    
-    # Apply column filter
+
+    # Fix the filter logic
     if filter_col != "None":
         if df[filter_col].dtype in ['int64', 'float64']:
             filtered_df = filtered_df[
@@ -239,7 +244,7 @@ def show_interactive_preview(df):
             ]
         else:
             filtered_df = filtered_df[filtered_df[filter_col].isin(selected_vals)]
-    
+
     # Show the filtered dataframe
     st.dataframe(
         filtered_df[cols].head(row_count),
@@ -276,7 +281,8 @@ def show_visualizations(df):
             with st.expander("Numeric Distributions", expanded=False):
                 selected_column = st.selectbox(
                     "Select numeric column for distribution",
-                    numeric_cols
+                    numeric_cols,
+                    key="numeric_column"
                 )
                 fig_dist = px.histogram(
                     df, 
@@ -471,22 +477,23 @@ def main():
                         with st.spinner('Cleaning data...'):
                             df = clean_data(df)
                         
-                        # Map designations to cadres
-                        with st.spinner('Mapping designations to cadres...'):
-                            df = map_designations(df)
-                            
-                            # Show the unique designations that weren't mapped
-                            unmapped = df[df['Cadre'] == 'Unmapped']['designation_title'].unique()
-                            if len(unmapped) > 0:
-                                st.warning(f"Found {len(unmapped)} unmapped designations!")
-                        
-                        if app_mode == "Data Processing":
-                            # Handle new designations if any are unmapped
-                            if len(unmapped) > 0:
-                                df = handle_new_designations(df)
-                                # Reapply mapping after handling new designations
+                        # Map designations to cadres (if applicable)
+                        if "designation_title" in df.columns:
+                            with st.spinner('Mapping designations to cadres...'):
                                 df = map_designations(df)
                             
+                                # Show the unique designations that weren't mapped
+                                unmapped = df[df['Cadre'] == 'Unmapped']['designation_title'].unique()
+                                if len(unmapped) > 0:
+                                    st.warning(f"Found {len(unmapped)} unmapped designations!")
+
+                                # Handle new designations if any are unmapped
+                                if len(unmapped) > 0:
+                                    df = handle_new_designations(df)
+                                    # Reapply mapping after handling new designations
+                                    df = map_designations(df)
+                        
+                        if app_mode == "Data Processing":
                             # Show interactive preview
                             filtered_df = show_interactive_preview(df)
                             
@@ -516,11 +523,12 @@ def main():
                             
                             question_type = st.selectbox(
                                 "Choose a question type:",
-                                suggested_questions
+                                suggested_questions,
+                                key="analysis_question_type"
                             )
                             
                             if question_type == "Custom Question":
-                                question = st.text_input("Enter your question about the data:")
+                                question = st.text_input("Enter your question about the data:", key="custom_question")
                             else:
                                 question = question_type
                             
@@ -539,7 +547,7 @@ def main():
                                             st.text("Raw AI Response:")
                                             st.code(st.session_state['last_response'])
                                     
-                                    if st.button("Generate Follow-up Questions"):
+                                    if st.button("Generate Follow-up Questions", key="followup_questions"):
                                         follow_up_prompt = f"Based on the previous analysis about '{question}', what are 3 relevant follow-up questions we could ask about this data?"
                                         follow_up_response = query_gemini(df, follow_up_prompt)
                                         st.markdown("### Suggested Follow-up Questions")

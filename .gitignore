@@ -5,6 +5,7 @@
 test_python_gemini.py
 cadre_mappings.json
 gen-lang-client-*.json
+app-updated.py
 
 # Directories
 data/
