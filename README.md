@@ -2,6 +2,10 @@
 
 A Streamlit application that automates Excel data processing, provides intelligent analysis using Google's Gemini AI, and offers interactive visualizations. Perfect for analyzing EOC (Emergency Operations Center) data with automated designation-to-cadre mapping.
 
+## Video Tutorial: 
+
+[AI-Powered Excel Automation App](https://drive.google.com/file/d/15bSBfMZLzDJXDJ74gD3NItOFDzfB_UDp/view?usp=sharing)
+
 ## Features 
 
 - **File Upload & Processing**
